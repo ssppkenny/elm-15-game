@@ -4,6 +4,7 @@ import Browser
 import Html exposing (..)
 import Html.Attributes exposing (attribute, class, classList, id, name, src, title, type_)
 import Html.Events exposing (onClick)
+import Keyboard
 import List exposing (length)
 import List.Extra exposing (getAt)
 import List.Split exposing (chunksOfLeft)
@@ -45,7 +46,6 @@ view model =
     div []
         [ div [ class "title" ]
             [ h2 [] [ text "15 Game" ]
-            , button [ class "button", onClick Shuffle ] [ text "Shuffle" ]
             ]
         , div
             [ class "game" ]
@@ -89,6 +89,7 @@ type Msg
     = Tick Time.Posix
     | Shuffle
     | State { x : Int, y : Int, description : String }
+    | KeyMsg Keyboard.RawKey
 
 
 initialModel : Model
@@ -101,6 +102,39 @@ initialModel =
         , [ 13, 14, 15, 0 ]
         ]
     }
+
+
+indexOfZeroHelper lst i =
+    case lst of
+        0 :: xs ->
+            i
+
+        t :: xs ->
+            indexOfZeroHelper xs (i + 1)
+
+        [] ->
+            -1
+
+
+indexOfZero lst =
+    indexOfZeroHelper lst 0
+
+
+findEmptyCell model =
+    let
+        fl =
+            List.concat model.board
+
+        pos =
+            indexOfZero fl
+
+        x =
+            modBy 4 pos
+
+        y =
+            pos // 4
+    in
+    ( x, y )
 
 
 findZero msg model =
@@ -118,8 +152,135 @@ findZero msg model =
         getAt 0 outlist
 
 
+findUpperCell x y =
+    if y == 0 then
+        Nothing
+
+    else
+        Just ( x, y - 1 )
+
+
+findLowerCell x y =
+    if y == 3 then
+        Nothing
+
+    else
+        Just ( x, y + 1 )
+
+
+findLeftCell x y =
+    if x == 0 then
+        Nothing
+
+    else
+        Just ( x - 1, y )
+
+
+findRightCell x y =
+    if x == 3 then
+        Nothing
+
+    else
+        Just ( x + 1, y )
+
+
+newModel x y cx cy model =
+    { model
+        | board =
+            List.indexedMap
+                (\j row ->
+                    List.indexedMap
+                        (\i cell ->
+                            if i == x && j == y then
+                                getValue cx cy model.board
+
+                            else if i == cx && j == cy then
+                                0
+
+                            else
+                                cell
+                        )
+                        row
+                )
+                model.board
+    }
+
+
 update msg model =
     case msg of
+        KeyMsg code ->
+            case Keyboard.whitespaceKey code of
+                Just key ->
+                    ( { model | board = shuffleBoard model.board model.time }, Cmd.none )
+
+                Nothing ->
+                    case Keyboard.navigationKey code of
+                        Just Keyboard.ArrowLeft ->
+                            let
+                                ( x, y ) =
+                                    findEmptyCell model
+
+                                nm =
+                                    case findRightCell x y of
+                                        Just ( x1, y1 ) ->
+                                            newModel x y x1 y1 model
+
+                                        Nothing ->
+                                            model
+                            in
+                            ( nm, Cmd.none )
+
+                        Just Keyboard.ArrowRight ->
+                            let
+                                ( x, y ) =
+                                    findEmptyCell model
+
+                                nm =
+                                    case findLeftCell x y of
+                                        Just ( x1, y1 ) ->
+                                            newModel x y x1 y1 model
+
+                                        Nothing ->
+                                            model
+                            in
+                            ( nm, Cmd.none )
+
+                        Just Keyboard.ArrowDown ->
+                            let
+                                ( x, y ) =
+                                    findEmptyCell model
+
+                                nm =
+                                    case findUpperCell x y of
+                                        Just ( x1, y1 ) ->
+                                            newModel x y x1 y1 model
+
+                                        Nothing ->
+                                            model
+                            in
+                            ( nm, Cmd.none )
+
+                        Just Keyboard.ArrowUp ->
+                            let
+                                ( x, y ) =
+                                    findEmptyCell model
+
+                                nm =
+                                    case findLowerCell x y of
+                                        Just ( x1, y1 ) ->
+                                            newModel x y x1 y1 model
+
+                                        Nothing ->
+                                            model
+                            in
+                            ( nm, Cmd.none )
+
+                        Just _ ->
+                            ( model, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
         Shuffle ->
             ( { model | board = shuffleBoard model.board model.time }, Cmd.none )
 
@@ -133,25 +294,7 @@ update msg model =
             in
             case zeroCoords of
                 Just ( x, y ) ->
-                    ( { model
-                        | board =
-                            List.indexedMap
-                                (\j row ->
-                                    List.indexedMap
-                                        (\i cell ->
-                                            if i == x && j == y then
-                                                getValue state.x state.y model.board
-
-                                            else if i == state.x && j == state.y then
-                                                0
-
-                                            else
-                                                cell
-                                        )
-                                        row
-                                )
-                                model.board
-                      }
+                    ( newModel x y state.x state.y model
                     , Cmd.none
                     )
 
@@ -163,11 +306,15 @@ initialCmd =
     Task.perform Tick Time.now
 
 
+subscriptions model =
+    Keyboard.downs KeyMsg
+
+
 main : Program () Model Msg
 main =
     Browser.element
         { init = \flags -> ( initialModel, initialCmd )
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
