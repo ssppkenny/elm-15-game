@@ -96,10 +96,10 @@ initialModel : Model
 initialModel =
     { time = 0
     , board =
-        [ [ 1, 2, 3, 4 ]
-        , [ 5, 6, 7, 8 ]
-        , [ 9, 10, 11, 12 ]
-        , [ 13, 14, 15, 0 ]
+        [ [ 3, 2, 4, 7 ]
+        , [ 12, 5, 14, 0 ]
+        , [ 13, 8, 9, 1 ]
+        , [ 10, 6, 15, 11 ]
         ]
     }
 
@@ -310,10 +310,14 @@ subscriptions model =
     Keyboard.downs KeyMsg
 
 
+init =
+    \flags -> ( initialModel, initialCmd )
+
+
 main : Program () Model Msg
 main =
     Browser.element
-        { init = \flags -> ( initialModel, initialCmd )
+        { init = init
         , view = view
         , update = update
         , subscriptions = subscriptions
